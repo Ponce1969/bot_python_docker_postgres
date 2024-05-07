@@ -12,6 +12,7 @@ import pytz
 import asyncio
 import psycopg2
 from database import db_connect
+from translate import Translator 
 
 
 # Carga las variables de entorno desde el archivo .env
@@ -108,6 +109,7 @@ async def ayuda(ctx):
     3. **Saludar**: Usa `>saludo` y te devolveré un saludo!
     4. **Info**: Usa `>info` y te devolveré información y hora del servidor.
     5. **Registrarse**: Usa `>register` y te registraré en la base de datos.
+    6. **Traducir**: Usa `>translate <mensaje>` y te devolveré el mensaje traducido al español.
     Si tienes alguna otra pregunta, no dudes en preguntar!
     """
     await ctx.send(ayuda_msg)
@@ -223,6 +225,23 @@ async def youtube(ctx, *, search):
         await ctx.send(f"Ha ocurrido un error al buscar videos: {str(e)}")
         
 
+
+# Función para que el bot de Python pueda traducir mensajes de inglés a español
+@bot.command()
+async def translate(ctx, *, message):
+    try:
+        translator = Translator(to_lang="es", from_lang="en")
+        translated = translator.translate(message)
+        await ctx.send(f"Mensaje original (inglés): {message}\nMensaje traducido (español): {translated}")
+    except ValueError:
+        await ctx.send("Error: El mensaje es demasiado largo para ser traducido.")
+    except Exception as e:
+        await ctx.send(f"Error al traducir el mensaje: {e}")
+           
+
+
+
+
 """  
 # Decorador para la función clear_old_messages
 # lograr permisos para borrar mensajes y luego descomentar el codigo
@@ -240,6 +259,10 @@ async def on_ready():
 
 """
         
+ 
+ 
+ 
+ 
         
      
 bot.run(token)        
