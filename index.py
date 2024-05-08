@@ -13,6 +13,9 @@ import asyncio
 import psycopg2
 from database import db_connect
 from translate import Translator 
+import random as rd
+
+
 
 
 # Carga las variables de entorno desde el archivo .env
@@ -110,6 +113,7 @@ async def ayuda(ctx):
     4. **Info**: Usa `>info` y te devolveré información y hora del servidor.
     5. **Registrarse**: Usa `>register` y te registraré en la base de datos.
     6. **Traducir**: Usa `>translate <mensaje>` y te devolveré el mensaje traducido al español.
+    7. **Abrazo**: Usa `>abrazo` y te enviaré un mensaje de ánimo.
     Si tienes alguna otra pregunta, no dudes en preguntar!
     """
     await ctx.send(ayuda_msg)
@@ -237,7 +241,63 @@ async def translate(ctx, *, message):
         await ctx.send("Error: El mensaje es demasiado largo para ser traducido.")
     except Exception as e:
         await ctx.send(f"Error al traducir el mensaje: {e}")
-           
+ 
+
+
+
+# Función para verificar si un destinatario está en la base de datos
+def destinatario_en_base_de_datos(destinatario):
+    try:
+        # Establece la conexión a la base de datos
+        conn = psycopg2.connect(
+            dbname=os.getenv("POSTGRES_DB"),
+            user=os.getenv("POSTGRES_USER"),
+            password=os.getenv("POSTGRES_PASSWORD"),
+            host="db" # o la dirección de tu servidor
+        )
+
+        # Crea un cursor
+        cur = conn.cursor()
+
+        # Ejecuta la consulta SQL
+        cur.execute("SELECT * FROM users WHERE nombre = %s", (destinatario,))
+
+        # Obtiene el resultado de la consulta
+        result = cur.fetchone()
+
+        # Cierra la conexión
+        cur.close()
+        conn.close()
+
+        # Si el resultado no es None, entonces el destinatario está en la base de datos
+        return result is not None
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+ 
+ 
+ 
+# funcion para enviar un mensaje de abrazo
+@bot.command()
+async def abrazo(ctx, destinatario=None): 
+    frases_motivadoras = [
+        "¡Ánimo! Todo saldrá bien !.",
+        "¡No te rindas! Eres más fuerte de lo que crees !.",
+        "¡Tú puedes! Eres capaz de superar cualquier obstáculo !.",
+        "¡Eres increíble! No dejes que nada te detenga !.",
+        "¡Eres valiente! Afronta tus miedos y sigue adelante !.",
+        "¡Eres un guerrero! No hay nada que no puedas lograr !.",
+        "¡Eres un campeón! No dejes que nada te detenga ! .",
+        "¡Eres muy importante para este grupo, Animo !!!!.",
+    ]
+    if destinatario:
+        if destinatario_en_base_de_datos(destinatario):
+            await ctx.send(f"¡Hola {destinatario}!\n{rd.choice(frases_motivadoras)}")
+        else:
+            await ctx.send(f"¡Hola!\nParece que {destinatario} no está registrado en el chat.\n{rd.choice(frases_motivadoras)}")
+    else:
+        await ctx.send(f"¡Hola!\n{rd.choice(frases_motivadoras)}")
 
 
 
@@ -261,8 +321,6 @@ async def on_ready():
         
  
  
- 
- 
-        
-     
+         
+# Iniciar el bot    
 bot.run(token)        
