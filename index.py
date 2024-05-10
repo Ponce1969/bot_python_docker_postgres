@@ -14,7 +14,7 @@ import psycopg2
 from database import db_connect
 from translate import Translator 
 import random as rd
-
+from functools import lru_cache
 
 
 
@@ -179,8 +179,9 @@ async def info(ctx):
     except Exception as e:
         await ctx.send(f"Error en la función info: {e}")
  
- 
- # Decorador para la función youtube                        
+
+# funcion para buscar videos de youtube , con sus decoradores cache y comando. 
+@lru_cache(maxsize=128)                    
 @bot.command()
 async def youtube(ctx, *, search):
     try:
@@ -290,12 +291,21 @@ async def abrazo(ctx, destinatario=None):
         "¡Eres un guerrero! No hay nada que no puedas lograr !.",
         "¡Eres un campeón! No dejes que nada te detenga ! .",
         "¡Eres muy importante para este grupo, Animo !!!!.",
-    ]
+        "¡Un tropezon no es caida sigue adelante!. ",
+        "¡Cuando todo parezca en tu contra, recuerda que el avion despega contra el viento!.",
+        "¡No hay que ir para atras ni para darse impulso!.",
+        "¡Si vas a mirar atras, que sea para ver lo lejos que has llegado!.", 
+        "¡No importa lo lento que vayas, siempre y cuando no te detengas!.",
+        "¡Saber lo que hay que hacer elimina el miedo!.",
+        "¡No te preocupes por los fracasos, preocúpate por las oportunidades que pierdes cuando ni siquiera lo intentas!.",
+        "¡No te rindas, el principio es siempre lo más dificil!.",
+        "¡El que tiene fe en si mismo no necesita que los demas crean en el!.",
+    ]    
     if destinatario:
         if destinatario_en_base_de_datos(destinatario):
             await ctx.send(f"¡Hola {destinatario}!\n{rd.choice(frases_motivadoras)}")
         else:
-            await ctx.send(f"¡Hola!\nParece que {destinatario} no está registrado en el chat.\n{rd.choice(frases_motivadoras)}")
+            await ctx.send(f"¡Hola!\nParece que {destinatario} no se registro en el chat.\n{rd.choice(frases_motivadoras)}")
     else:
         await ctx.send(f"¡Hola!\n{rd.choice(frases_motivadoras)}")
 
