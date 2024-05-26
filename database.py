@@ -13,18 +13,27 @@ def db_connect():
         print(f"Failed to connect to the database. Error: {e}")
         return None
 
-def register(conn, ctx):
+def user_exists(conn, discord_ID):
+    cursor = None
     try:
         cursor = conn.cursor()
-
-        # Verifica si el usuario ya está registrado
-        cursor.execute("SELECT * FROM users WHERE discordID = %s", (str(ctx.author.id),))
+        cursor.execute("SELECT * FROM users WHERE discordID = %s", (discord_ID,))
         existing_user = cursor.fetchone()
+        return existing_user is not None
+    except psycopg2.Error as e:
+        print(f"Error during user verification: {e}")
+        return False
+    finally:
+        if cursor is not None:
+            cursor.close()
 
-        if existing_user:
+def register(conn, ctx):
+    cursor = None
+    try:
+        if user_exists(conn, str(ctx.author.id)):
             print("Usuario ya registrado en la base de datos.")
         else:
-            # Inserta un nuevo usuario
+            cursor = conn.cursor()
             cursor.execute("INSERT INTO users (discordID, userName) VALUES (%s, %s)", (str(ctx.author.id), str(ctx.author)))
             conn.commit()
             print("Usuario registrado correctamente.")
@@ -35,17 +44,5 @@ def register(conn, ctx):
             cursor.close()
 
 def verify_id(conn, discord_ID):
-    try:
-        cursor = conn.cursor()
-
-        # Verifica si el usuario existe
-        cursor.execute("SELECT * FROM users WHERE discordID = %s", (discord_ID,))
-        existing_user = cursor.fetchone()
-
-        return existing_user is not None
-    except psycopg2.Error as e:
-        print(f"Error during verification: {e}")
-    finally:
-        if cursor is not None:
-            cursor.close()
+    return user_exists(conn, discord_ID)
 

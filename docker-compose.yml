@@ -26,7 +26,7 @@ services: #servicios que vamos a utilizar
       - postgres #depende de postgresql
     volumes:
       - /home/gonzapython/Documentos/vscode_codigo/bot_discord:/app
-    command: /bin/bash -c "apt-get update && apt-get install -y wait-for-it && wait-for-it postgres:5432 --timeout=30 -- pip install -r /app/requirements.txt && python /app/index.py"
+    command: /bin/bash -c "apt-get update && apt-get install -y wait-for-it && wait-for-it postgres:5432 --timeout=30 -- pip install --upgrade pip && pip install -r /app/requirements.txt && python /app/index.py"
 
 volumes:
   db_data:

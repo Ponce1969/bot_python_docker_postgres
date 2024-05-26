@@ -1,49 +1,42 @@
-# aqui se desarrolla la logica para el bot de discord.
-# se importan las librerias necesarias
-import discord
-from dotenv import load_dotenv
-from discord.ext import tasks
 import os
-from discord.ext import commands
-import database
 import datetime
+import random as rd
+import asyncio
+import discord
+from discord.ext.commands import Bot
+from dotenv import load_dotenv
 from googleapiclient.discovery import build
 import pytz
-import asyncio
+from translate import Translator
+from database import db_connect, verify_id, register
 import psycopg2
-from database import db_connect
-from translate import Translator 
-import random as rd
-from functools import lru_cache
 
 
-
-# Carga las variables de entorno desde el archivo .env
+# Cargar variables de entorno
+load_dotenv()
 db_uri = os.getenv('DB_URI')
 token = os.getenv('DISCORD_TOKEN')
 youtube_api_key = os.getenv('YOUTUBE_API_KEY')
 
+# Inicializar API de YouTube
 youtube_api = build('youtube', 'v3', developerKey=youtube_api_key)
 
+# Configurar intents y bot
 intents = discord.Intents.default()
 intents.message_content = True
-# comando de prefijo ' > '
-bot = commands.Bot(command_prefix='>', description="Esto es un bot de ayuda", intents=intents, case_insensitive=True)
+bot = Bot(command_prefix='>', description="Bot de ayuda", intents=intents, case_insensitive=True)
 
-
-# Crear la conexión a la base de datos antes de iniciar el bot
+# Conexión a la base de datos
 try:
-    connection = db_connect() # asegurarse de que la función db_connect() esté definida en database.py
-    if connection is None:
-        print("No se pudo conectar a la base de datos")
-    else:
+    connection = db_connect()
+    if connection:
         print("Conexión a la base de datos establecida correctamente")
+    else:
+        print("No se pudo conectar a la base de datos")
 except Exception as e:
     print(f"Error al conectar a la base de datos: {e}")
 
-
-
-# Evento on_ready combinado
+# Evento de inicio del bot
 @bot.event
 async def on_ready():
     try:
@@ -51,88 +44,64 @@ async def on_ready():
         print("Bot iniciado correctamente")
     except Exception as e:
         print(f"Error al iniciar el bot: {e}")
-    
-    
-# Comando register
-@bot.command(help="registrate en la database")
+
+#registrarse en la base de datos
+@bot.command(help="Regístrate en la base de datos")
 async def register(ctx):
+    conn = db_connect()
     try:
-        global connection
-        cursor = None  # Inicializa cursor aquí
-        flag = database.verify_id(connection, str(ctx.author.id))
+        flag = verify_id(conn, str(ctx.author.id))
         if flag:
             await ctx.send("Usted se encuentra registrado en la base de datos")
         else:
-            cursor = connection.cursor()  # Mueve la inicialización aquí
-            database.register(connection, ctx)
+            register(conn, ctx.author.id)
             await ctx.send("Te has registrado correctamente en la base de datos")
     except psycopg2.Error as e:
         await ctx.send(f"Error de psycopg2: {e}")
     except Exception as e:
-          print(f"Ocurrió un error: {e}")
-          print(f"Type of exception: {type(e)}")
-          print(f"Exception details: {e.args}")
-          await ctx.send(f"Ocurrió un error: {e}")
+        await ctx.send(f"Ocurrió un error: {e}")
     finally:
-        if cursor is not None:
-            cursor.close()  # Cierra el cursor en el bloque finally
+        conn.close()
 
-
-
-
- # Decorador para la función ping
+# comando ping
 @bot.command()
 async def ping(ctx):
-    await ctx.send('pong')      
-    
-    
-# Decorador para la función ayuda
+    response = await ctx.send('pong')
+    await asyncio.sleep(8)
+    await response.delete()
+
+# comando ayuda , muestra los comandos disponibles
 @bot.command()
 async def ayuda(ctx):
-    """
-    Muestra información sobre los comandos disponibles del bot.
-
-    Uso:
-    >ayuda
-
-    Descripción:
-    Este comando proporciona información detallada sobre los comandos disponibles del bot.
-    """
-
     ayuda_msg = """
     Hola! Soy tu bot de Discord. Aquí están las cosas que puedo hacer:
-
     1. **Buscar canciones de YouTube**: Usa `>youtube <nombre de la canción>` para buscar una canción en YouTube.
-    2. **Operaciones matemáticas**: Puedo sumar, restar, multiplicar y dividir;
-        - Para sumar: `>operacion sum <número 1> <número 2>`
-        - Para restar: `>operacion resta <número 1> <número 2>`
-        - Para multiplicar: `>operacion mult <número 1> <número 2>`
-        - Para dividir: `>operacion div <número 1> <número 2>`
-        - Para obtener el resto: `>operacion resto <número 1> <número 2>`
+    2. **Operaciones matemáticas**: Usa `>operacion <sum|resta|mult|div|resto> <número 1> <número 2>`.
     3. **Saludar**: Usa `>saludo` y te devolveré un saludo!
     4. **Info**: Usa `>info` y te devolveré información y hora del servidor.
     5. **Registrarse**: Usa `>register` y te registraré en la base de datos.
     6. **Traducir**: Usa `>translate <mensaje>` y te devolveré el mensaje traducido al español.
     7. **Abrazo**: Usa `>abrazo` y te enviaré un mensaje de ánimo.
-    Si tienes alguna otra pregunta, no dudes en preguntar!
+    8. **Invitar**: Usa `>invitar_alcohol <@usuario>` y enviaré una invitación para tomar algo.
     """
-    await ctx.send(ayuda_msg)
+    response = await ctx.send(ayuda_msg)
+    await asyncio.sleep(30)
+    await response.delete()
     
-    
- # Decorador para la función saludo   
+
+# comando saludo y dar la bienvenida
 @bot.command()
 async def saludo(ctx, nombre: str = None):
     if nombre:
-        await ctx.send(f"Hola,  {nombre}!! \n Bienvenido al Servidor de Gonzalo Ponce.")
+        response = await ctx.send(f"Hola, {nombre}!! \n Bienvenido al Servidor de Gonzalo Ponce.")
     else:
-        await ctx.send("Hola! Por favor, dime tu nombre para saludarte correctamente, asi \n >saludo y tu nombre")
-        
+        response =  await ctx.send("Hola! Por favor, dime tu nombre para saludarte correctamente, asi \n >saludo y tu nombre")
+    await asyncio.sleep(15)
+    await response.delete()
 
-
-# Decorador para la función operacion_matematica
+# comando de operaciones matemáticas
 @bot.command()
 async def operacion(ctx, operador: str, numero_uno: int, numero_dos: int):
-    
     try:
         if operador == 'sum':
             resultado = numero_uno + numero_dos
@@ -144,44 +113,45 @@ async def operacion(ctx, operador: str, numero_uno: int, numero_dos: int):
             if numero_dos != 0:
                 resultado = numero_uno // numero_dos
             else:
-                await ctx.send("Error: No se puede dividir por cero.")
+                response = await ctx.send("Error: No se puede dividir por cero.")
+                await asyncio.sleep(10)
+                await response.delete()
                 return
         elif operador == 'resto':
             resultado = numero_uno % numero_dos
         else:
-            await ctx.send("Error: Operador no válido.")
+            response = await ctx.send("Error: Operador no válido.")
+            await asyncio.sleep(11)
+            await response.delete()
             return
         await ctx.send(resultado)
     except Exception as e:
-        await ctx.send(f"Error en la operación: {e}")
-
-
-# Ejemplo de uso: >operacion sum 5 3
-# Resultado: 8
-    
-# Decorador para la función info de zona horaria.
+        response =  await ctx.send(f"Error en la operación: {e}")
+        await asyncio.sleep(10)
+        await response.delete()
+        
+# comando de información, muestra la hora del servidor
 @bot.command()
 async def info(ctx):
     try:
-        # Obten la hora actual en la zona horaria de Uruguay
-        uruguay_time = datetime.datetime.now(pytz.timezone('America/Montevideo')) # Cambia a tu zona horaria'
-
-        if ctx.guild is None:
-            title = "Mensaje Directo"
-        else:
-            title = ctx.guild.name
-
-        # Crea el embed con el título y la hora de Uruguay
-        embed = discord.Embed(title=title, 
-            description="Aprendiendo Python y sus librerias",
-            timestamp=uruguay_time, color=discord.Color.blue())
-        await ctx.send(embed=embed)
+        uruguay_time = datetime.datetime.now(pytz.timezone('America/Montevideo'))
+        title = "Mensaje Directo" if ctx.guild is None else ctx.guild.name
+        embed = discord.Embed(
+            title=title,
+            description="Aprendiendo Python y sus librerías",
+            timestamp=uruguay_time,
+            color=discord.Color.blue()
+        )
+        response = await ctx.send(embed=embed)
+        await asyncio.sleep(30)
+        await response.delete()
+        
     except Exception as e:
-        await ctx.send(f"Error en la función info: {e}")
- 
-
-# funcion para buscar videos de youtube , con sus decoradores cache y comando. 
-@lru_cache(maxsize=128)                    
+        response = await ctx.send(f"Error en la función info: {e}")
+        await asyncio.sleep(10)
+        await response.delete()
+        
+# comando de búsqueda de videos en YouTube
 @bot.command()
 async def youtube(ctx, *, search):
     try:
@@ -198,139 +168,139 @@ async def youtube(ctx, *, search):
         response = request.execute()
 
         if response['items']:
-            options = []
-            for i, item in enumerate(response['items']):
-                if item['id']['kind'] == "youtube#video":
-                    video_id = item['id']['videoId']
-                    title = item['snippet']['title']
-                    options.append(f"{i + 1}: {title}")
+            options = [f"{i + 1}: {item['snippet']['title']}" for i, item in enumerate(response['items']) if item['id']['kind'] == "youtube#video"]
 
             if not options:
                 await ctx.send('No se encontraron videos para tu búsqueda.')
                 return
 
-            options_message = "\n".join(options)
-            await ctx.send("Elije un video:\n" + options_message)
-
+            await ctx.send("Elije un video:\n" + "\n".join(options))
+            
+            
             def check(m):
                 return m.author == ctx.author and m.content.isdigit() and 0 < int(m.content) <= len(options)
 
             try:
                 choice = await bot.wait_for('message', check=check, timeout=30.0)
+                selected = int(choice.content) - 1
+                video_id = response['items'][selected]['id']['videoId']
+                await ctx.send('https://www.youtube.com/watch?v=' + video_id)
+                
+                
+                
             except asyncio.TimeoutError:
                 await ctx.send('No se recibió respuesta, cancelando operación.')
-                return
-
-            selected = int(choice.content) - 1
-            video_id = response['items'][selected]['id']['videoId']
-            await ctx.send('https://www.youtube.com/watch?v=' + video_id)
+                
+            
         else:
             await ctx.send('No se encontraron videos para tu búsqueda.')
+            
+                  
     except Exception as e:
-        await ctx.send(f"Ha ocurrido un error al buscar videos: {str(e)}")
+        await ctx.send(f"Ha ocurrido un error al buscar videos: {e}")
+    
         
 
-
-# Función para que el bot de Python pueda traducir mensajes de inglés a español
+# comando de traducción de mensajes
 @bot.command()
 async def translate(ctx, *, message):
     try:
         translator = Translator(to_lang="es", from_lang="en")
         translated = translator.translate(message)
-        await ctx.send(f"Mensaje original (inglés): {message}\nMensaje traducido (español): {translated}")
+        response = await ctx.send(f"Mensaje original (inglés): {message}\nMensaje traducido (español): {translated}")
+        await asyncio.sleep(30)
+        await response.delete()
+        
     except ValueError:
-        await ctx.send("Error: El mensaje es demasiado largo para ser traducido.")
+        response = await ctx.send("Error: El mensaje es demasiado largo para ser traducido.")
+        await asyncio.sleep(10)
+        await response.delete()
+        
     except Exception as e:
-        await ctx.send(f"Error al traducir el mensaje: {e}")
- 
+        response = await ctx.send(f"Error al traducir el mensaje: {e}")
+        await asyncio.sleep(10)
+        await response.delete()
 
 
+# comando de ánimo, envía un mensaje de ánimo
+async def seleccionar_y_enviar_frase(ctx, destinatario=None):
+    frases_motivadoras = [
+        "¡Ánimo! Todo saldrá bien.",
+        "¡No te rindas! Eres más fuerte de lo que crees.",
+        "¡Tú puedes! Eres capaz de superar cualquier obstáculo.",
+        "¡Eres increíble! No dejes que nada te detenga.",
+        "¡Eres valiente! Afronta tus miedos y sigue adelante.",
+        "¡Eres un guerrero! No hay nada que no puedas lograr.",
+        "¡Eres un campeón! No dejes que nada te detenga.",
+        "¡Eres muy importante para este grupo, ánimo!",
+        "¡Un tropiezo no es caída, sigue adelante!",
+        "¡Cuando todo parezca en tu contra, recuerda que el avión despega contra el viento!",
+        "¡No hay que ir para atrás ni para darse impulso!",
+        "¡Si vas a mirar atrás, que sea para ver lo lejos que has llegado!",
+        "¡No importa lo lento que vayas, siempre y cuando no te detengas!",
+        "¡Saber lo que hay que hacer elimina el miedo!",
+        "¡No te preocupes por los fracasos, preocúpate por las oportunidades que pierdes cuando ni siquiera lo intentas!",
+        "¡No te rindas, el principio es siempre lo más difícil!",
+        "¡El que tiene fe en sí mismo no necesita que los demás crean en él!",
+    ]
+    mensaje = f"¡Hola {destinatario}!\n{rd.choice(frases_motivadoras)}" if destinatario else f"¡Hola!\n{rd.choice(frases_motivadoras)}"
+    response = await ctx.send(mensaje)
+    await asyncio.sleep(40)
+    await response.delete()
 
-# Función para verificar si un destinatario está en la base de datos
 def destinatario_en_base_de_datos(destinatario):
     try:
-        # Establece la conexión a la base de datos
-        conn = psycopg2.connect(
-            dbname=os.getenv("POSTGRES_DB"),
-            user=os.getenv("POSTGRES_USER"),
-            password=os.getenv("POSTGRES_PASSWORD"),
-            host="db" # o la dirección de tu servidor
-        )
-
-        # Crea un cursor
-        cur = conn.cursor()
-
-        # Ejecuta la consulta SQL
-        cur.execute("SELECT * FROM users WHERE nombre = %s", (destinatario,))
-
-        # Obtiene el resultado de la consulta
-        result = cur.fetchone()
-
-        # Cierra la conexión
-        cur.close()
-        conn.close()
-
-        # Si el resultado no es None, entonces el destinatario está en la base de datos
-        return result is not None
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return False
- 
- 
- 
-# funcion para enviar un mensaje de abrazo
-@bot.command()
-async def abrazo(ctx, destinatario=None): 
-    frases_motivadoras = [
-        "¡Ánimo! Todo saldrá bien !.",
-        "¡No te rindas! Eres más fuerte de lo que crees !.",
-        "¡Tú puedes! Eres capaz de superar cualquier obstáculo !.",
-        "¡Eres increíble! No dejes que nada te detenga !.",
-        "¡Eres valiente! Afronta tus miedos y sigue adelante !.",
-        "¡Eres un guerrero! No hay nada que no puedas lograr !.",
-        "¡Eres un campeón! No dejes que nada te detenga ! .",
-        "¡Eres muy importante para este grupo, Animo !!!!.",
-        "¡Un tropezon no es caida sigue adelante!. ",
-        "¡Cuando todo parezca en tu contra, recuerda que el avion despega contra el viento!.",
-        "¡No hay que ir para atras ni para darse impulso!.",
-        "¡Si vas a mirar atras, que sea para ver lo lejos que has llegado!.", 
-        "¡No importa lo lento que vayas, siempre y cuando no te detengas!.",
-        "¡Saber lo que hay que hacer elimina el miedo!.",
-        "¡No te preocupes por los fracasos, preocúpate por las oportunidades que pierdes cuando ni siquiera lo intentas!.",
-        "¡No te rindas, el principio es siempre lo más dificil!.",
-        "¡El que tiene fe en si mismo no necesita que los demas crean en el!.",
-    ]    
-    if destinatario:
-        if destinatario_en_base_de_datos(destinatario):
-            await ctx.send(f"¡Hola {destinatario}!\n{rd.choice(frases_motivadoras)}")
+        conn = db_connect()
+        if conn:
+            return verify_id(conn, destinatario)
         else:
-            await ctx.send(f"¡Hola!\nParece que {destinatario} no se registro en el chat.\n{rd.choice(frases_motivadoras)}")
-    else:
-        await ctx.send(f"¡Hola!\n{rd.choice(frases_motivadoras)}")
+            return False
+    except Exception as e:
+        print(f"Error al verificar el destinatario: {e}")
+        return False
+
+# comando de abrazo, envía un mensaje de ánimo
+@bot.command()
+async def abrazo(ctx, destinatario=None):
+    if destinatario and not destinatario_en_base_de_datos(destinatario):
+        destinatario = None
+    await seleccionar_y_enviar_frase(ctx, destinatario)
+
+# comando de invitar a tomar algo
+@bot.command()
+async def invitar_alcohol(ctx, invitado: discord.Member):
+    invitar = ctx.author # Quien invita
+    elegir_bebida = [
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso del mejor whisky escocés.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de cerveza artesanal.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de vino tinto.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de ron.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de tequila.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de vodka.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de pisco.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de ginebra.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de mojito.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de bourbon.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de coñac.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de absenta.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de pisco sour.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de chilcano de maracuyá.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de amaretto.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Baileys.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Campari.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Chartreuse.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Cointreau.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de curacao.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Grand Marnier.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Kahlua.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Aperol Spritz.",
+        f"{invitar.name} invita a {invitado.name} a tomar un vaso de Bellini.",
+    ]
+    mensaje = rd.choice(elegir_bebida)
+    await ctx.send(mensaje)
 
 
 
-
-"""  
-# Decorador para la función clear_old_messages
-# lograr permisos para borrar mensajes y luego descomentar el codigo
-@tasks.loop(hours=24)  # Ejecuta esta función cada 24 horas
-async def clear_old_messages():
-    for guild in bot.guilds:  # Para cada servidor en el que el bot está presente
-        for channel in guild.text_channels:  # Para cada canal de texto en el servidor
-            limit_time = datetime.datetime.now() - datetime.timedelta(days=30)  # Los mensajes deben ser más antiguos que esto para ser borrados
-            await channel.purge(limit=25, before=limit_time)  # Borra los mensajes antiguos
-
-@bot.event
-async def on_ready():
-    clear_old_messages.start()  # Inicia la tarea cuando el bot está listo
-
-
-"""
-        
- 
- 
-         
 # Iniciar el bot    
-bot.run(token)        
+bot.run(token)
+       
