@@ -1,15 +1,28 @@
 import os
+import sys
 import datetime
+import pathlib
+import textwrap
+import time
 import random as rd
 import asyncio
 import discord
 from discord.ext.commands import Bot
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
-import pytz
+from pytz import timezone
 from translate import Translator
 from database import db_connect, verify_id, register
 import psycopg2
+import requests
+import logging
+import google.generativeai as geneai
+from IPython.display import Markdown
+from IPython.display import display
+from database import create_chat_table
+from database import save_chat
+
+
 
 
 # Cargar variables de entorno
@@ -17,20 +30,34 @@ load_dotenv()
 db_uri = os.getenv('DB_URI')
 token = os.getenv('DISCORD_TOKEN')
 youtube_api_key = os.getenv('YOUTUBE_API_KEY')
+GOOGLE_API_KEY= os.getenv('GOOGLE_API_KEY')
+max_history = int(os.getenv('MAX_HISTORY'))
 
 # Inicializar API de YouTube
 youtube_api = build('youtube', 'v3', developerKey=youtube_api_key)
+
+# Configurar el registro de eventos
+logging.basicConfig(level=logging.INFO)
 
 # Configurar intents y bot
 intents = discord.Intents.default()
 intents.message_content = True
 bot = Bot(command_prefix='>', description="Bot de ayuda", intents=intents, case_insensitive=True)
 
+
+# ID del servidor de Discord
+CHANNEL_ID = 1172339507035639831
+
+# constante para el comando history
+MAX_HISTORY = 15
+
+
 # Conexión a la base de datos
 try:
     connection = db_connect()
     if connection:
         print("Conexión a la base de datos establecida correctamente")
+        create_chat_table(connection)  # Crear la tabla después de establecer la conexión
     else:
         print("No se pudo conectar a la base de datos")
 except Exception as e:
@@ -134,7 +161,7 @@ async def operacion(ctx, operador: str, numero_uno: int, numero_dos: int):
 @bot.command()
 async def info(ctx):
     try:
-        uruguay_time = datetime.datetime.now(pytz.timezone('America/Montevideo'))
+        uruguay_time = datetime.datetime.now(timezone('America/Montevideo'))
         title = "Mensaje Directo" if ctx.guild is None else ctx.guild.name
         embed = discord.Embed(
             title=title,
@@ -266,6 +293,7 @@ async def abrazo(ctx, destinatario=None):
         destinatario = None
     await seleccionar_y_enviar_frase(ctx, destinatario)
 
+
 # comando de invitar a tomar algo
 @bot.command()
 async def invitar_alcohol(ctx, invitado: discord.Member):
@@ -298,6 +326,68 @@ async def invitar_alcohol(ctx, invitado: discord.Member):
     ]
     mensaje = rd.choice(elegir_bebida)
     await ctx.send(mensaje)
+
+
+
+
+# configurar el modelo generativo IA
+text_generation_config = {
+     "temperature": 0.9, 
+     "top_p": 1,
+     "top_k": 1,
+     "max_output_tokens": 200,
+}
+image_generation_config = {
+    "temperature": 0.4,
+    "top_p": 1,
+    "top_k": 32,
+    "max_output_tokens": 200,
+}
+safety_settings = [
+    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},  
+]
+text_model = geneai.GenerativeModel(model_name="gemini-pro" , generation_config=text_generation_config, safety_settings=safety_settings)
+image_model = geneai.GenerativeModel(model_name="gemini-pro-vision" , generation_config=image_generation_config, safety_settings=safety_settings)    
+
+chat = text_model.start_chat(history=[])
+
+
+@bot.command()
+async def gemini(ctx, string: str):
+    user_message = ctx.message.content
+    respuesta_ia = chat.send_message(user_message)
+    await ctx.send(respuesta_ia.text)
+    #guardar en la base de datos
+    save_chat(connection, str(ctx.author.id), user_message, respuesta_ia.text)
+    
+
+# Comando para mostrar el historial de conversaciones
+@bot.command()
+async def historial(ctx):
+    try:
+        conn = db_connect()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM gemini_chats WHERE discordID = '{ctx.author.id}' ORDER BY id DESC LIMIT {MAX_HISTORY} OFFSET 0")
+            rows = cursor.fetchall()
+            if rows:
+                for row in rows:
+                    await ctx.send(f"{row[2]}: {row[3]}")
+            else:
+                await ctx.send("No se encontraron conversaciones en el historial.")
+        else:
+            await ctx.send("No se pudo conectar a la base de datos.")
+    except psycopg2.Error as e:
+        await ctx.send(f"Error de psycopg2: {e}")
+    except Exception as e:
+        await ctx.send(f"Ocurrió un error: {e}")
+    finally:
+        conn.close()
+
+
 
 
 

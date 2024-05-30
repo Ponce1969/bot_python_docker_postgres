@@ -46,3 +46,43 @@ def register(conn, ctx):
 def verify_id(conn, discord_ID):
     return user_exists(conn, discord_ID)
 
+
+# crear tabla para chat de gemini ia
+def create_chat_table(conn):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gemini_chats (
+                id SERIAL PRIMARY KEY,
+                discordID VARCHAR(255),
+                user_message TEXT,
+                gemini_response TEXT
+            )
+        """)
+        conn.commit()
+        print("Tabla de chats de Gemini creada correctamente.")
+    except psycopg2.Error as e:
+        print(f"Error al crear la tabla de chats de Gemini: {e}")
+    finally:
+        if cursor is not None:
+            cursor.close()
+            
+            
+            
+# codigo para insertar mensajes de usuario y respuestas de gemini en la tabla
+def save_chat(conn, discord_ID, user_message, gemini_response):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO gemini_chats (discordID, user_message, gemini_response)
+            VALUES (%s, %s, %s)
+        """, (discord_ID, user_message, gemini_response))
+        conn.commit()
+        print("Chat guardado correctamente.")
+    except psycopg2.Error as e:
+        print(f"Error al guardar el chat: {e}")
+    finally:
+        if cursor is not None:
+            cursor.close()
