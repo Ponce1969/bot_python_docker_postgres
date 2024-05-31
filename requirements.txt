@@ -53,7 +53,6 @@ pyasn1-modules==0.3.0
 pydantic==2.7.1
 pydantic_core==2.18.2
 Pygments==2.18.0
-pymongo==4.6.0
 pyparsing==3.1.1
 python-dotenv==1.0.0
 pytz==2023.3.post1

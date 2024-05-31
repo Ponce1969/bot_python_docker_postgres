@@ -67,7 +67,7 @@ except Exception as e:
 @bot.event
 async def on_ready():
     try:
-        await bot.change_presence(activity=discord.Streaming(name="Tutorial de Mouredev", url="https://www.twitch.tv/mouredev/videos"))
+        await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="el blog de Pythonesa"))
         print("Bot iniciado correctamente")
     except Exception as e:
         print(f"Error al iniciar el bot: {e}")
@@ -110,6 +110,8 @@ async def ayuda(ctx):
     6. **Traducir**: Usa `>translate <mensaje>` y te devolveré el mensaje traducido al español.
     7. **Abrazo**: Usa `>abrazo` y te enviaré un mensaje de ánimo.
     8. **Invitar**: Usa `>invitar_alcohol <@usuario>` y enviaré una invitación para tomar algo.
+    9. **Gemini**: Usa `>gemini <mensaje>` y te responderé con un mensaje generado por IA.
+    10. **Historial**: Usa `>historial` y te mostraré el historial de conversaciones.
     """
     response = await ctx.send(ayuda_msg)
     await asyncio.sleep(30)
@@ -325,7 +327,10 @@ async def invitar_alcohol(ctx, invitado: discord.Member):
         f"{invitar.name} invita a {invitado.name} a tomar un vaso de Bellini.",
     ]
     mensaje = rd.choice(elegir_bebida)
-    await ctx.send(mensaje)
+    response = await ctx.send(mensaje)
+    await asyncio.sleep(40)
+    await response.delete()
+    
 
 
 
