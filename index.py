@@ -1,6 +1,7 @@
 import os
 import sys
 import datetime
+import pyjokes
 import pathlib
 import textwrap
 import time
@@ -21,6 +22,7 @@ from IPython.display import Markdown
 from IPython.display import display
 from database import create_chat_table
 from database import save_chat
+from database import db_connect, create_interventions_table, increment_interventions, get_interventions, get_all_interventions
 
 
 
@@ -82,7 +84,7 @@ async def register(ctx):
             await ctx.send("Usted se encuentra registrado en la base de datos")
         else:
             register(conn, ctx.author.id)
-            await ctx.send("Te has registrado correctamente en la base de datos")
+            await ctx.send("**Te has registrado correctamente en la base de datos**")
     except psycopg2.Error as e:
         await ctx.send(f"Error de psycopg2: {e}")
     except Exception as e:
@@ -101,22 +103,39 @@ async def ping(ctx):
 @bot.command()
 async def ayuda(ctx):
     ayuda_msg = """
-    Hola! Soy tu bot de Discord. Aquí están las cosas que puedo hacer:
-    1. **Buscar canciones de YouTube**: Usa `>youtube <nombre de la canción>` para buscar una canción en YouTube.
-    2. **Operaciones matemáticas**: Usa `>operacion <sum|resta|mult|div|resto> <número 1> <número 2>`.
-    3. **Saludar**: Usa `>saludo` y te devolveré un saludo!
-    4. **Info**: Usa `>info` y te devolveré información y hora del servidor.
-    5. **Registrarse**: Usa `>register` y te registraré en la base de datos.
-    6. **Traducir**: Usa `>translate <mensaje>` y te devolveré el mensaje traducido al español.
-    7. **Abrazo**: Usa `>abrazo` y te enviaré un mensaje de ánimo.
-    8. **Invitar**: Usa `>invitar_alcohol <@usuario>` y enviaré una invitación para tomar algo.
-    9. **Gemini**: Usa `>gemini <mensaje>` y te responderé con un mensaje generado por IA.
-    10. **Historial**: Usa `>historial` y te mostraré el historial de conversaciones.
-    """
+Hola! Soy tu bot de Discord. Aquí están las cosas que puedo hacer:
+
+**1.  Buscar  en YouTube**: Usa `>youtube <nombre de la canción>`.
+
+**2.  Operaciones**: Usa `>operacion <sum|resta|mult|div|resto> <número 1> <número 2>`.
+
+**3.  Saludar**: Usa `>saludo` y te devolveré un saludo!
+
+**4.  Info**: Usa `>info` y te devolveré información y hora del servidor.
+
+**5.  Registrarse**: Usa `>register` y te registraré en la base de datos.
+
+**6.  Traducir**: Usa `>translate <mensaje>` y te devolveré el mensaje traducido al español.
+
+**7.  Abrazo**: Usa `>abrazo` y te enviaré un mensaje de ánimo.
+
+**8.  Invitar**: Usa `>invitar_alcohol <@usuario>` y enviaré una invitación para tomar algo.
+
+**9.  Gemini**: Usa `>gemini <mensaje>` y te responderé con un mensaje generado por IA.
+
+**10. Historial**: Usa `>historial` y te mostraré el historial de conversaciones.
+
+**11. Gracias**: Usa `>gracias <@usuario>` y otorgaré una moneda de oro al usuario más activo.
+
+**12. Ranking**: Usa `>ranking` y te mostraré el ranking de los usuarios más activos.
+
+**13. Chiste**: Usa `>joke` y te contaré un chiste.
+
+**14. Adivina**: Usa `>adivina` y jugarás al juego de adivinar la palabra.
+"""
     response = await ctx.send(ayuda_msg)
-    await asyncio.sleep(30)
+    await asyncio.sleep(50)
     await response.delete()
-    
 
 # comando saludo y dar la bienvenida
 @bot.command()
@@ -340,13 +359,13 @@ text_generation_config = {
      "temperature": 0.9, 
      "top_p": 1,
      "top_k": 1,
-     "max_output_tokens": 200,
+     "max_output_tokens": 300,
 }
 image_generation_config = {
     "temperature": 0.4,
     "top_p": 1,
     "top_k": 32,
-    "max_output_tokens": 200,
+    "max_output_tokens": 300,
 }
 safety_settings = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
@@ -393,6 +412,125 @@ async def historial(ctx):
         conn.close()
 
 
+#Conectar a la base de datos y crear tabla de intervenciones si no existe
+conn = db_connect()
+try:
+    create_interventions_table(conn)
+finally:
+    conn.close()
+
+# Constante para el emoji de moneda de oro
+EMOJI_MONEDA_ORO = "🪙"
+
+# Comando para otorgar monedas de oro al usuario que mas ayude en el servidor
+@bot.command()
+async def gracias(ctx, usuario: discord.Member):
+    # conectar a la base de datos
+    conn = db_connect()
+    try:
+        # Incrementar las intervenciones del usuario en la base de datos
+        increment_interventions(conn, str(usuario.id))
+
+        # Obtener el número de intervenciones del usuario de la base de datos
+        intervenciones = get_interventions(conn, str(usuario.id))
+
+        # verificar si el usuario tiene mas de 10 intervenciones
+        if intervenciones >= 10:
+            # resetear el conteo en la base de datos
+            increment_interventions(conn, str(usuario.id), reset=True)
+            await ctx.send(f"El usuario {usuario.name} ha sido muy activo en el servidor y ha sido premiado con una moneda de oro.")
+            
+            # Aqui el codigo para asignar el icono de moneda de oro al usuario.
+            emoji_moneda_oro = discord.utils.get(ctx.guild.emojis, name=EMOJI_MONEDA_ORO)
+            if emoji_moneda_oro:
+                await ctx.send(f"{emoji_moneda_oro} {usuario.mention}") 
+            else:
+                await ctx.send("No se pudo otorgar la moneda de oro.")
+    finally:
+        conn.close()
+
+# Comando para mostrar el ranking de los usuarios que mas ayudan en el servidor
+@bot.command()
+async def ranking(ctx):
+    # conectar a la base de datos
+    conn = db_connect()
+    try:
+        intervenciones = get_all_interventions(conn)
+        if intervenciones:
+            mensaje = "Ranking de usuarios más activos en el servidor:\n"
+            for i, (usuario_id, cantidad) in enumerate(intervenciones):
+                usuario = ctx.guild.get_member(int(usuario_id))
+                if usuario:  # Verificar que el usuario todavía está en el servidor
+                    mensaje += f"{i+1}. {usuario.name}: {cantidad} intervenciones\n"
+            await ctx.send(mensaje)
+        else:
+            await ctx.send("No hay intervenciones registradas en el servidor.")
+    finally:
+        conn.close()
+        
+ 
+# comando de chiste 
+@bot.command()
+async def joke(ctx):
+    joke = pyjokes.get_joke(language='es')
+    while len(joke) > 80:  # Ajusta este número según lo que consideres un chiste "corto"
+        joke = pyjokes.get_joke(language='es')
+    response = await ctx.send(joke) 
+    await asyncio.sleep(40)
+    await response.delete()    
+           
+
+# Juego de adivinar la palabra
+def generar_mensaje(palabra_descubierta, vidas, letras_usadas):
+    return (f"**Palabra secreta:** {' '.join(palabra_descubierta)}\n"
+            f"**Vidas restantes:** {vidas}\n"
+            f"**Letras usadas:** {' '.join(sorted(letras_usadas))}")
+
+@bot.command()
+async def adivina(ctx):
+    palabras = ["python", "ordenador", "libreria", "programacion", "discord", "bot", "juego", "videojuego", "tecnologia", "inteligencia", "django"]
+    palabra_secreta = rd.choice(palabras)
+    vidas = 6
+    palabra_descubierta = ['_'] * len(palabra_secreta)
+    letras_usadas = set()
+
+    await ctx.send(f"**Bienvenido al juego de adivinar la palabra!**\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas) + "\n**Escribe una letra para adivinar la palabra.**")
+
+    while vidas > 0:
+        def check(m):
+            return m.author == ctx.author and m.content.isalpha() and len(m.content) == 1
+
+        try:
+            respuesta = await bot.wait_for('message', check=check, timeout=30.0)
+            letra = respuesta.content.lower()
+            if letra in letras_usadas:
+                await ctx.send(f"Ya has usado la letra {letra}. Inténtalo de nuevo.")
+                continue
+            letras_usadas.add(letra)
+            if letra in palabra_secreta:
+                for i, c in enumerate(palabra_secreta):
+                    if c == letra:
+                        palabra_descubierta[i] = letra
+                await ctx.send(f"La letra {letra} está en la palabra.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
+                if '_' not in palabra_descubierta:
+                    await ctx.send(f"**Felicidades! Has adivinado la palabra.**\n\n**Palabra secreta:** {palabra_secreta}")
+                    break
+            else:
+                vidas -= 1
+                await ctx.send(f"La letra {letra} no está en la palabra. Inténtalo de nuevo.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
+        except asyncio.TimeoutError:
+            await ctx.send("Se acabó el tiempo. Inténtalo de nuevo.")
+            break
+    else:
+        await ctx.send(f"**Perdiste! La palabra secreta era: {palabra_secreta}**")
+        
+        
+    
+    
+    
+    
+        
+        
 
 
 

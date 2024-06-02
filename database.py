@@ -86,3 +86,71 @@ def save_chat(conn, discord_ID, user_message, gemini_response):
     finally:
         if cursor is not None:
             cursor.close()
+            
+
+
+# codigo para almacenar intervenciones de usuario ayuda en el chat, para las monedas
+def create_interventions_table(conn):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_interventions (
+                id SERIAL PRIMARY KEY,
+                discordID VARCHAR(255),
+                interventions INTEGER DEFAULT 0
+            )
+        """)
+        conn.commit()
+        print("Tabla de intervenciones de usuario creada correctamente.")
+    except psycopg2.Error as e:
+        print(f"Error al crear la tabla de intervenciones de usuario: {e}")
+    finally:
+        if cursor is not None:
+            cursor.close()
+            
+# incrementar el contador de intervenciones de usuario
+def increment_interventions(conn, discord_ID):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_interventions (discordID, interventions)
+            VALUES (%s, 1)
+            ON CONFLICT (discordID) DO UPDATE SET interventions = user_interventions.interventions + 1
+        """, (discord_ID,))
+        conn.commit()
+    except psycopg2.Error as e:
+        print(f"Error al incrementar las intervenciones: {e}")
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+# obtener el numero de intervenciones de usuario
+def get_interventions(conn, discord_ID):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT interventions FROM user_interventions WHERE discordID = %s", (discord_ID,))
+        interventions = cursor.fetchone()
+        return interventions[0] if interventions else 0
+    except psycopg2.Error as e:
+        print(f"Error al obtener las intervenciones: {e}")
+        return 0
+    finally:
+        if cursor is not None:
+            cursor.close()
+            
+# obtener todas las intervenciones de todos los usuarios
+def get_all_interventions(conn):
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT discordID, interventions FROM user_interventions ORDER BY interventions DESC")
+        return cursor.fetchall()
+    except psycopg2.Error as e:
+        print(f"Error al obtener todas las intervenciones: {e}")
+        return []
+    finally:
+        if cursor is not None:
+            cursor.close()
