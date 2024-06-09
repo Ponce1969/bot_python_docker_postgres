@@ -135,7 +135,6 @@ Hola! Soy tu bot de Discord. Aquí están las cosas que puedo hacer:
 
 **14. Adivina**: Usa `>adivina` y jugarás al juego de adivinar la palabra.
 
-**15. Imagen**: Usa `>imagen <texto>` y te generaré una imagen.
 """
     response = await ctx.send(ayuda_msg)
     await asyncio.sleep(50)
