@@ -1,19 +1,21 @@
 import os
-import sys
+import base64
+import json
+import io
 import datetime
-import pyjokes
 import pathlib
 import textwrap
 import time
 import random as rd
+import concurrent.futures
 import asyncio
 import discord
 from discord.ext.commands import Bot
+from PIL import Image
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from pytz import timezone
 from translate import Translator
-from database import db_connect, verify_id, register
 import psycopg2
 import requests
 import logging
@@ -22,7 +24,7 @@ from IPython.display import Markdown
 from IPython.display import display
 from database import create_chat_table
 from database import save_chat
-from database import db_connect, create_interventions_table, increment_interventions, get_interventions, get_all_interventions
+from database import create_interventions_table, increment_interventions, get_interventions, get_all_interventions, db_connect,verify_id, register,create_and_load_chistes_table,chistes_list
 
 
 
@@ -129,9 +131,11 @@ Hola! Soy tu bot de Discord. Aquí están las cosas que puedo hacer:
 
 **12. Ranking**: Usa `>ranking` y te mostraré el ranking de los usuarios más activos.
 
-**13. Chiste**: Usa `>joke` y te contaré un chiste.
+**13. Chiste**: Usa `>chistes` y te contaré un chiste.
 
 **14. Adivina**: Usa `>adivina` y jugarás al juego de adivinar la palabra.
+
+**15. Imagen**: Usa `>imagen <texto>` y te generaré una imagen.
 """
     response = await ctx.send(ayuda_msg)
     await asyncio.sleep(50)
@@ -359,13 +363,13 @@ text_generation_config = {
      "temperature": 0.9, 
      "top_p": 1,
      "top_k": 1,
-     "max_output_tokens": 300,
+     "max_output_tokens": 400,
 }
 image_generation_config = {
     "temperature": 0.4,
     "top_p": 1,
     "top_k": 32,
-    "max_output_tokens": 300,
+    "max_output_tokens": 400,
 }
 safety_settings = [
     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
@@ -378,7 +382,7 @@ image_model = geneai.GenerativeModel(model_name="gemini-pro-vision" , generation
 
 chat = text_model.start_chat(history=[])
 
-
+#funcion para hablar con API de generacion de texto
 @bot.command()
 async def gemini(ctx, string: str):
     user_message = ctx.message.content
@@ -469,16 +473,25 @@ async def ranking(ctx):
         conn.close()
         
  
-# comando de chiste 
-@bot.command()
-async def joke(ctx):
-    joke = pyjokes.get_joke(language='es')
-    while len(joke) > 80:  # Ajusta este número según lo que consideres un chiste "corto"
-        joke = pyjokes.get_joke(language='es')
-    response = await ctx.send(joke) 
-    await asyncio.sleep(40)
-    await response.delete()    
-           
+# Cargar la tabla de chistes al inicio
+create_and_load_chistes_table(chistes_list) 
+ 
+ 
+# Comando para contar un chiste
+@bot.command(name='chistes')
+async def chistes(ctx):
+    conn = db_connect()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT contenido FROM chistes ORDER BY RANDOM() LIMIT 1")
+        chiste = cursor.fetchone()
+        await ctx.send(chiste[0] if chiste else "No hay chistes disponibles en este momento.")
+        cursor.close()
+        conn.close()
+        
+        
+
+
 
 # Juego de adivinar la palabra
 def generar_mensaje(palabra_descubierta, vidas, letras_usadas):
@@ -498,26 +511,38 @@ async def adivina(ctx):
 
     while vidas > 0:
         def check(m):
-            return m.author == ctx.author and m.content.isalpha() and len(m.content) == 1
+            return m.author == ctx.author and m.content.isalpha()
 
         try:
             respuesta = await bot.wait_for('message', check=check, timeout=30.0)
-            letra = respuesta.content.lower()
-            if letra in letras_usadas:
-                await ctx.send(f"Ya has usado la letra {letra}. Inténtalo de nuevo.")
-                continue
-            letras_usadas.add(letra)
-            if letra in palabra_secreta:
-                for i, c in enumerate(palabra_secreta):
-                    if c == letra:
-                        palabra_descubierta[i] = letra
-                await ctx.send(f"La letra {letra} está en la palabra.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
-                if '_' not in palabra_descubierta:
-                    await ctx.send(f"**Felicidades! Has adivinado la palabra.**\n\n**Palabra secreta:** {palabra_secreta}")
-                    break
-            else:
-                vidas -= 1
-                await ctx.send(f"La letra {letra} no está en la palabra. Inténtalo de nuevo.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
+            contenido = respuesta.content.lower()
+            if len(contenido) == 1:  # adivinando una letra
+                letra = contenido
+                if letra in letras_usadas:
+                    await ctx.send(f"Ya has usado la letra {letra}. Inténtalo de nuevo.")
+                    continue
+                letras_usadas.add(letra)
+                if letra in palabra_secreta:
+                    for i, c in enumerate(palabra_secreta):
+                        if c == letra:
+                            palabra_descubierta[i] = letra
+                    await ctx.send(f"La letra {letra} está en la palabra.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
+                    if '_' not in palabra_descubierta:
+                        await ctx.send(f"**Felicidades! Has adivinado la palabra.**\n\n**Palabra secreta:** {palabra_secreta}")
+                        break
+                else:
+                    vidas -= 1
+                    await ctx.send(f"La letra {letra} no está en la palabra. Inténtalo de nuevo.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
+            else:  # adivinando la palabra completa
+                if palabra_descubierta.count('_') <= len(palabra_secreta) / 2:  # si se ha adivinado al menos la mitad de las letras
+                    if contenido == palabra_secreta:
+                        await ctx.send(f"**Felicidades! Has adivinado la palabra.**\n\n**Palabra secreta:** {palabra_secreta}")
+                        break
+                    else:
+                        vidas -= 1
+                        await ctx.send(f"La palabra {contenido} no es correcta. Inténtalo de nuevo.\n\n" + generar_mensaje(palabra_descubierta, vidas, letras_usadas))
+                else:
+                    await ctx.send("Aún no puedes adivinar la palabra completa. Sigue adivinando letras.")
         except asyncio.TimeoutError:
             await ctx.send("Se acabó el tiempo. Inténtalo de nuevo.")
             break

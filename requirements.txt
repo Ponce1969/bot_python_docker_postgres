@@ -72,3 +72,9 @@ urllib3==2.1.0
 wcwidth==0.2.13
 yarl==1.9.2 
 pyjokes==0.6.0
+greenlet==1.1.2
+sqlalchemy==1.4.31
+pillow==10.3.0
+
+
+
