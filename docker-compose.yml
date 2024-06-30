@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:alpine
+    env_file: .env 
+    restart: always
+    ports:
+      - 5432:5432  
+    volumes:
+      - C:/Users/gompa/Documents/bot_discord/base.sql:/docker-entrypoint-initdb.d/base.sql
+      - db_data:/var/lib/postgresql/data
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@admin.com"
+      PGADMIN_DEFAULT_PASSWORD: "admin"
+    ports:
+      - 8082:80
+    depends_on:
+      - postgres
+
+  bot:
+    image: python:3.10
+    env_file: .env
+    depends_on:
+      - postgres
+    volumes:
+      - C:/Users/gompa/Documents/bot_discord:/app
+    command: /bin/bash -c "apt-get update && apt-get install -y wait-for-it && wait-for-it postgres:5432 --timeout=30 -- pip install --upgrade pip && pip install -r /app/requirements.txt && python /app/index.py"
+
+volumes:
+  db_data:
+ 
