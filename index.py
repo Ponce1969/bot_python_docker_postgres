@@ -190,26 +190,42 @@ async def operacion(ctx, operador: str, numero_uno: int, numero_dos: int):
         await response.delete()
 
 
-# comando de información, muestra la hora del servidor
+# comando de información, muestra la hora del servidor y la temperatura del procesador
 @bot.command()
 async def info(ctx):
     try:
+        # Obtener la hora actual en Uruguay
         uruguay_time = datetime.datetime.now(timezone('America/Montevideo'))
+        
+        # Leer la temperatura del procesador
+        with open('/sys/class/thermal/thermal_zone0/temp', 'r') as temp_file:
+            cpu_temp = int(temp_file.read()) / 1000  # Convertir de miligrados a grados
+        
+        # Crear el título del mensaje
         title = "Mensaje Directo" if ctx.guild is None else ctx.guild.name
+        
+        # Crear la descripción incluyendo la temperatura del procesador
+        description = f"Aprendiendo Python y sus librerías\nTemperatura del CPU: {cpu_temp}°C"
+        
+        # Crear el embed con la información
         embed = discord.Embed(
             title=title,
-            description="Aprendiendo Python y sus librerías",
+            description=description,
             timestamp=uruguay_time,
             color=discord.Color.blue()
         )
+        
+        # Enviar el embed y eliminarlo después de 30 segundos
         response = await ctx.send(embed=embed)
         await asyncio.sleep(30)
         await response.delete()
         
     except Exception as e:
+        # Manejar excepciones enviando un mensaje de error y eliminándolo después de 10 segundos
         response = await ctx.send(f"Error en la función info: {e}")
-        await asyncio.sleep(10)
+        await asyncio.sleep(30)
         await response.delete()
+
 
 
 # comando de búsqueda de videos en YouTube
