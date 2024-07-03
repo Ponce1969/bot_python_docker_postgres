@@ -6,7 +6,7 @@ services:
     ports:
       - 5432:5432  
     volumes:
-      - C:/Users/gompa/Documents/bot_discord/base.sql:/docker-entrypoint-initdb.d/base.sql
+      - /home/gonzalopython/python/bot_python_docker_postgres/base.sql:/docker-entrypoint-initdb.d/base.sql
       - db_data:/var/lib/postgresql/data
   pgadmin:
     image: dpage/pgadmin4
@@ -24,9 +24,9 @@ services:
     depends_on:
       - postgres
     volumes:
-      - C:/Users/gompa/Documents/bot_discord:/app
+      - /home/gonzalopython/python/bot_python_docker_postgres:/app
     command: /bin/bash -c "apt-get update && apt-get install -y wait-for-it && wait-for-it postgres:5432 --timeout=30 -- pip install --upgrade pip && pip install -r /app/requirements.txt && python /app/index.py"
 
 volumes:
   db_data:
- 
+
