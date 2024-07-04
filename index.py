@@ -117,7 +117,7 @@ Hola! Soy tu bot de Discord. Aquí están las cosas que puedo hacer:
 
 **3.  Saludar**: Usa `>saludo` y te devolveré un saludo!
 
-**4.  Info**: Usa `>info` y te devolveré información y hora del servidor.
+**4.  Info**: Usa `>info` y te devolveré información y hora del servidor, mas la temperatura del procesador.
 
 **5.  Registrarse**: Usa `>register` y te registraré en la base de datos.
 
